@@ -40,4 +40,4 @@ zones = np.random.choice(['F', 'L', 'O'], size=(5,5))
 st.write("Zone Map (F=First, L=Loyalty, O=Opposition)")
 st.dataframe(pd.DataFrame(zones))
 
-df_sim.to_csv("simulation_output.csv", index=False)
+
