@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import folium
+from streamlit_folium import st_folium
 
 # Load simulation data or run from scratch
 st.title("Soweto Retail Market RL Simulation")
@@ -39,5 +41,16 @@ if start_sim:
 zones = np.random.choice(['F', 'L', 'O'], size=(5,5))
 st.write("Zone Map (F=First, L=Loyalty, O=Opposition)")
 st.dataframe(pd.DataFrame(zones))
+
+#Simulation coordinates
+# Soweto center
+m = folium.Map(location=[-26.267, 27.858], zoom_start=12)
+
+# Add store locations or zones
+folium.Marker(location=[-26.267, 27.858], popup="F").add_to(m)
+
+# Render in Streamlit
+st_folium(m, width=700, height=500)
+
 
 
