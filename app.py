@@ -111,7 +111,7 @@ st.markdown("""
 
 # Add churn tracking
 churn_f, churn_l, churn_o = [], [], []
-for day in day:
+for day in days:
     # First-to-Market churn
     f_loss = f * 0.001
     f -= f_loss
