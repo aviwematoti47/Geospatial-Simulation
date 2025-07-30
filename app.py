@@ -15,26 +15,6 @@ run_simulation = st.sidebar.button("▶️ Run Simulation")
 st.title("🏪 Soweto Retail Business Simulation")
 st.markdown("This app models business competition in Soweto's subsistence market using reinforcement learning strategies.")
 
-# ===================== Interactive Soweto Map =========================
-map_center = [-26.267, 27.858]
-m = folium.Map(location=map_center, zoom_start=13)
-
-np.random.seed(42)
-business_types = ['F', 'L', 'O']
-for i in range(10):
-    lat_offset = np.random.uniform(-0.01, 0.01)
-    lon_offset = np.random.uniform(-0.01, 0.01)
-    b_type = np.random.choice(business_types)
-    folium.Marker(
-        location=[map_center[0] + lat_offset, map_center[1] + lon_offset],
-        popup=f"Business Type: {b_type}",
-        icon=folium.Icon(color='blue' if b_type == 'F' else 'green' if b_type == 'L' else 'red')
-    ).add_to(m)
-
-st.subheader("🗺️ Soweto Market Map")
-st.markdown("F = First-to-Market, L = Loyalty-Based, O = Opposition")
-st_folium(m, width=700, height=500)
-
 # ===================== Game Rules and RL Explanation =========================
 st.subheader("🎮 Game Rules and Simulation Logic")
 
@@ -112,6 +92,32 @@ zone_colors = zone_df.replace({
     '': '⬜️'
 })
 st.dataframe(zone_colors, use_container_width=True)
+
+# ===================== Dynamic Zone Map =========================
+st.subheader("🗺️ Dynamic Map of Zone Business Types")
+
+# Define a fixed spatial grid (5x5) using lat/lon offsets
+grid_base_lat, grid_base_lon = -26.267, 27.858  # Soweto center
+lat_step, lon_step = 0.002, 0.002  # adjust spacing
+day_grid = zone_snapshots[selected_day - 1]
+
+# New map for the day
+day_map = folium.Map(location=[grid_base_lat, grid_base_lon], zoom_start=14)
+
+for i in range(5):
+    for j in range(5):
+        b_type = day_grid[i][j]
+        if b_type != "":
+            lat = grid_base_lat + (i * lat_step)
+            lon = grid_base_lon + (j * lon_step)
+            color = 'blue' if b_type == 'F' else 'green' if b_type == 'L' else 'red'
+            folium.Marker(
+                location=[lat, lon],
+                popup=f"Zone ({i},{j}) – {b_type}",
+                icon=folium.Icon(color=color)
+            ).add_to(day_map)
+
+st_folium(day_map, width=700, height=500)
 
 # ===================== Business Simulation Block =========================
 if run_simulation:
