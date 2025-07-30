@@ -61,4 +61,53 @@ if run_simulation:
 
     st.success("Simulation complete. Data exported.")
 
+st.subheader("🎮 Game Rules and Simulation Logic")
+
+st.markdown("""
+### 👔 Business Strategies:
+- **First-to-Market (F)**:
+  - Enters first.
+  - Grows fast early.
+  - Suffers **10% intent loss per month** due to churn.
+
+- **Loyalty-Based (L)**:
+  - Enters after 30 days.
+  - Grows slowly, retains customers better.
+  - Loses **10% more customers to Opposition**.
+
+- **Opposition (O)**:
+  - Enters after day 90.
+  - Only sets up where others already exist.
+  - Hard to convert back once gained.
+
+---
+
+### 🤖 Reinforcement Learning Setup
+
+- **State**:
+  - Current day (1–365)
+  - Zone status (which business is present)
+  - Customer scores (e.g. Purchase Intention)
+  - Churn risk
+
+- **Actions**:
+  - Open Store
+  - Expand to adjacent zone
+  - Lower prices
+  - Do nothing
+
+- **Rewards**:
+  - +1 for customer gain
+  - -1 for churn
+  - +2 bonus if taking over competitor zone
+
+---
+
+### 🧠 Strategy Notes
+- Businesses adapt based on past performance.
+- Decisions can be made using rules or RL algorithms.
+- This simulation uses fixed rules (for simplicity), but can be upgraded to Q-learning or PPO.
+""")
+
+
 
