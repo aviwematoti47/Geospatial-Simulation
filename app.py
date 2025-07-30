@@ -1,70 +1,64 @@
-import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import streamlit as st
 import folium
 from streamlit_folium import st_folium
 
 # Load simulation data or run from scratch
 st.title("Soweto Retail Market RL Simulation")
 
-st.sidebar.header("Simulation Controls")
-days = st.sidebar.slider("Simulate Days", min_value=1, max_value=365, value=30)
-start_sim = st.sidebar.button("Run Simulation")
+# Sidebar control
+st.sidebar.title("📅 Simulation Controls")
+total_days = st.sidebar.slider("Select number of days to simulate", 30, 365, 180)
+run_simulation = st.sidebar.button("▶️ Run Simulation")
 
 # Placeholder business states
-if start_sim:
-    st.subheader("Simulating Business Dynamics...")
-    
-    # Example: Initialize 3 business types
-    results = []
-    for day in range(1, days+1):
-        results.append({
-            'Day': day,
-            'First_to_Market': np.random.randint(50, 200),
-            'Loyalty_Based': np.random.randint(30, 150),
-            'Opposition': np.random.randint(10, 100),
-        })
-    
-    df_sim = pd.DataFrame(results)
-    
-    st.line_chart(df_sim.set_index('Day'))
+if run_simulation:
+    st.subheader("📈 Business Market Share Over Time")
 
-    st.subheader("Business Market Share")
-    last_day = df_sim.iloc[-1][['First_to_Market', 'Loyalty_Based', 'Opposition']]
-    st.bar_chart(last_day)
+    # Initialize business counts
+    days = list(range(1, total_days + 1))
+    first_market = []
+    loyalty_based = []
+    opposition = []
 
-    st.dataframe(df_sim)
+    f = 100  # First-to-market starts with 100 customers
+    l = 0
+    o = 0
 
+    for day in days:
+        # First-to-Market: loses 0.1% daily
+        f_loss = f * 0.001
+        f -= f_loss
 
-# Simulate 5x5 zone map and color-code zones
-zones = np.random.choice(['F', 'L', 'O'], size=(5,5))
-st.write("Zone Map (F=First, L=Loyalty, O=Opposition)")
-st.dataframe(pd.DataFrame(zones))
+        # Loyalty-Based: enters after day 30, grows slowly
+        if day > 30:
+            l += 1.5  # stable growth
 
-#Simulation coordinates(Map)
-# Soweto map center (adjust if you have better coordinates)
-map_center = [-26.267, 27.858]
-m = folium.Map(location=map_center, zoom_start=13)
+        # Opposition: enters after day 90, gains by taking from others
+        if day > 90:
+            o += 2
+            f -= 1
+            l -= 1
 
-# Simulate 10 business locations (with random lat/lon offsets)
-np.random.seed(42)
-business_types = ['F', 'L', 'O']
-for i in range(10):
-    lat_offset = np.random.uniform(-0.01, 0.01)
-    lon_offset = np.random.uniform(-0.01, 0.01)
-    b_type = np.random.choice(business_types)
+        first_market.append(max(f, 0))
+        loyalty_based.append(max(l, 0))
+        opposition.append(max(o, 0))
 
-    folium.Marker(
-        location=[map_center[0] + lat_offset, map_center[1] + lon_offset],
-        popup=f"Business Type: {b_type}",
-        icon=folium.Icon(color='blue' if b_type == 'F' else 'green' if b_type == 'L' else 'red')
-    ).add_to(m)
+    # Build results dataframe
+    df_trends = pd.DataFrame({
+        "Day": days,
+        "First-to-Market": first_market,
+        "Loyalty-Based": loyalty_based,
+        "Opposition": opposition
+    })
 
-# Render map in Streamlit
-st.title("🗺️ Soweto Subsistence Retail Map")
-st.markdown("**Markers show simulated business types:** F = First-to-Market, L = Loyalty-Based, O = Opposition")
-st_folium(m, width=700, height=500)
+    st.line_chart(df_trends.set_index("Day"))
 
+    # Export for Looker Studio
+    df_trends.to_csv("simulation_output.csv", index=False)
+
+    st.success("Simulation complete. Data exported.")
 
 
