@@ -42,14 +42,28 @@ zones = np.random.choice(['F', 'L', 'O'], size=(5,5))
 st.write("Zone Map (F=First, L=Loyalty, O=Opposition)")
 st.dataframe(pd.DataFrame(zones))
 
-#Simulation coordinates
-# Soweto center
-m = folium.Map(location=[-26.267, 27.858], zoom_start=12)
+#Simulation coordinates(Map)
+# Soweto map center (adjust if you have better coordinates)
+map_center = [-26.267, 27.858]
+m = folium.Map(location=map_center, zoom_start=13)
 
-# Add store locations or zones
-folium.Marker(location=[-26.267, 27.858], popup="F").add_to(m)
+# Simulate 10 business locations (with random lat/lon offsets)
+np.random.seed(42)
+business_types = ['F', 'L', 'O']
+for i in range(10):
+    lat_offset = np.random.uniform(-0.01, 0.01)
+    lon_offset = np.random.uniform(-0.01, 0.01)
+    b_type = np.random.choice(business_types)
 
-# Render in Streamlit
+    folium.Marker(
+        location=[map_center[0] + lat_offset, map_center[1] + lon_offset],
+        popup=f"Business Type: {b_type}",
+        icon=folium.Icon(color='blue' if b_type == 'F' else 'green' if b_type == 'L' else 'red')
+    ).add_to(m)
+
+# Render map in Streamlit
+st.title("🗺️ Soweto Subsistence Retail Map")
+st.markdown("**Markers show simulated business types:** F = First-to-Market, L = Loyalty-Based, O = Opposition")
 st_folium(m, width=700, height=500)
 
 
