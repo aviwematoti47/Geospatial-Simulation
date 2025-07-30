@@ -2,4 +2,5 @@ streamlit
 pandas 
 numpy 
 matplotlib
-folium
+streamli_folium
+
