@@ -5,10 +5,13 @@ import numpy as np
 import folium
 from streamlit_folium import st_folium
 from streamlit import session_state as state
+import networkx as nx
+import matplotlib.pyplot as plt
+import random
 
 # ===================== Page Setup =========================
 st.set_page_config(page_title="Soweto Retail Simulation", layout="wide")
-st.title("🏪 Soweto Retail Business Simulation")
+st.title("\U0001F3EA Soweto Retail Business Simulation")
 
 st.markdown("""
 This app models business competition in Soweto's subsistence retail market using a simplified reinforcement learning simulation.
@@ -16,13 +19,13 @@ Move the slider to explore how business strategies evolve across time and space.
 """)
 
 # ===================== Sidebar Controls =========================
-st.sidebar.title("📅 Simulation Controls")
+st.sidebar.title("\U0001F4C5 Simulation Controls")
 total_days = st.sidebar.slider("Simulate how many days?", 30, 365, 180)
 selected_day = st.sidebar.slider("View zones and stats on day:", 1, total_days, 1)
 run_simulation = st.sidebar.button("▶️ Run Simulation")
 
 # ===================== Game Rule Display =========================
-st.sidebar.markdown("### 🎮 Game Strategy Rules")
+st.sidebar.markdown("### \U0001F3AE Game Strategy Rules")
 st.sidebar.info("""
 **F:** First-to-Market  
 **L:** Loyalty-Based  
@@ -39,6 +42,45 @@ if "df_trends" not in state:
     state.df_churn = None
     state.zone_snapshots = []
 
+# ===================== Step 1: Create 5x5 Zone Network using networkx =========================
+rows, cols = 5, 5
+G = nx.Graph()
+for i in range(rows):
+    for j in range(cols):
+        node_id = f"Z{i*cols + j}"
+        G.add_node(node_id, pos=(j, -i))
+for i in range(rows):
+    for j in range(cols):
+        current = f"Z{i*cols + j}"
+        if j < cols - 1:
+            G.add_edge(current, f"Z{i*cols + (j+1)}")
+        if i < rows - 1:
+            G.add_edge(current, f"Z{(i+1)*cols + j}")
+business_types = ['F', 'L', 'O', '']
+for node in G.nodes:
+    G.nodes[node]['business'] = random.choice(business_types)
+
+# Optional networkx visualization (can be commented out in Streamlit)
+fig, ax = plt.subplots(figsize=(6, 5))
+pos = nx.get_node_attributes(G, 'pos')
+labels = nx.get_node_attributes(G, 'business')
+color_map = []
+for node in G:
+    b_type = G.nodes[node]['business']
+    if b_type == 'F':
+        color_map.append('blue')
+    elif b_type == 'L':
+        color_map.append('green')
+    elif b_type == 'O':
+        color_map.append('red')
+    else:
+        color_map.append('lightgray')
+nx.draw(G, pos, with_labels=True, node_color=color_map, node_size=800, edge_color='gray', ax=ax)
+nx.draw_networkx_labels(G, pos, labels=labels, font_color='white', font_weight='bold', ax=ax)
+plt.title("5x5 Zone Grid as Business Network")
+plt.axis("off")
+st.pyplot(fig)
+
 # ===================== Simulation Logic =========================
 if run_simulation:
     days = list(range(1, total_days + 1))
@@ -49,7 +91,6 @@ if run_simulation:
     zone_snapshots = []
 
     for day in days:
-        # Churn and growth
         f_loss = f * 0.001
         f -= f_loss
         churn_f.append(f_loss)
@@ -75,7 +116,6 @@ if run_simulation:
         loyalty_based.append(max(l, 0))
         opposition.append(max(o, 0))
 
-        # Generate 5x5 zone grid per day
         grid = np.full((5, 5), "", dtype=object)
         for i in range(5):
             for j in range(5):
@@ -88,7 +128,6 @@ if run_simulation:
                     grid[i][j] = 'O'
         zone_snapshots.append(grid)
 
-    # Store in session_state
     state.df_trends = pd.DataFrame({
         "Day": days,
         "First-to-Market": first_market,
@@ -102,65 +141,6 @@ if run_simulation:
         "Opposition": churn_o
     })
     state.zone_snapshots = zone_snapshots
-
-    # Export
     state.df_trends.to_csv("simulation_output.csv", index=False)
     state.df_churn.to_csv("churn_output.csv", index=False)
     st.success("✅ Simulation complete. Data exported.")
-
-# ===================== Display Section =========================
-if state.df_trends is not None:
-
-    col1, col2 = st.columns([1, 2])
-
-    # ========= Zone Grid =========
-    col1.subheader(f"📦 Zone Ownership on Day {selected_day}")
-    zone_df = pd.DataFrame(state.zone_snapshots[selected_day - 1])
-    zone_colors = zone_df.replace({
-        'F': '🟦 F',
-        'L': '🟩 L',
-        'O': '🟥 O',
-        '': '⬜️'
-    })
-    col1.dataframe(zone_colors, use_container_width=True)
-
-    # ========= Real-Time Map =========
-    col2.subheader("🗺️ Business Distribution Map")
-    grid_base_lat, grid_base_lon = -26.267, 27.858
-    lat_step, lon_step = 0.002, 0.002
-    day_grid = state.zone_snapshots[selected_day - 1]
-
-    map_dynamic = folium.Map(location=[grid_base_lat, grid_base_lon], zoom_start=14)
-    for i in range(5):
-        for j in range(5):
-            b_type = day_grid[i][j]
-            if b_type != "":
-                lat = grid_base_lat + (i * lat_step)
-                lon = grid_base_lon + (j * lon_step)
-                color = 'blue' if b_type == 'F' else 'green' if b_type == 'L' else 'red'
-                folium.Marker(
-                    location=[lat, lon],
-                    popup=f"Zone ({i},{j}) – {b_type}",
-                    icon=folium.Icon(color=color)
-                ).add_to(map_dynamic)
-    st_folium(map_dynamic, width=700, height=500)
-
-    # ========= Daily Snapshot Charts =========
-    st.subheader(f"📊 Market Share and Churn on Day {selected_day}")
-    day_stats = {
-        "First-to-Market": state.df_trends.loc[selected_day - 1, "First-to-Market"],
-        "Loyalty-Based": state.df_trends.loc[selected_day - 1, "Loyalty-Based"],
-        "Opposition": state.df_trends.loc[selected_day - 1, "Opposition"]
-    }
-
-    churn_stats = {
-        "First-to-Market": state.df_churn.loc[selected_day - 1, "First-to-Market"],
-        "Loyalty-Based": state.df_churn.loc[selected_day - 1, "Loyalty-Based"],
-        "Opposition": state.df_churn.loc[selected_day - 1, "Opposition"]
-    }
-
-    st.markdown("**📦 Market Share:**")
-    st.bar_chart(pd.DataFrame(day_stats, index=["Customers"]))
-
-    st.markdown("**🔥 Churn:**")
-    st.bar_chart(pd.DataFrame(churn_stats, index=["Churned"]))
