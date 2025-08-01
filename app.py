@@ -42,7 +42,7 @@ if "df_trends" not in state:
     state.df_churn = None
     state.zone_snapshots = []
 
-# ===================== Step 1: Create 5x5 Zone Network using networkx =========================
+# ===================== Step 1: Create 5x5 Zone Network =========================
 rows, cols = 5, 5
 G = nx.Graph()
 for i in range(rows):
@@ -56,32 +56,8 @@ for i in range(rows):
             G.add_edge(current, f"Z{i*cols + (j+1)}")
         if i < rows - 1:
             G.add_edge(current, f"Z{(i+1)*cols + j}")
-business_types = ['F', 'L', 'O', '']
-for node in G.nodes:
-    G.nodes[node]['business'] = random.choice(business_types)
 
-# Optional networkx visualization (can be commented out in Streamlit)
-fig, ax = plt.subplots(figsize=(6, 5))
-pos = nx.get_node_attributes(G, 'pos')
-labels = nx.get_node_attributes(G, 'business')
-color_map = []
-for node in G:
-    b_type = G.nodes[node]['business']
-    if b_type == 'F':
-        color_map.append('blue')
-    elif b_type == 'L':
-        color_map.append('green')
-    elif b_type == 'O':
-        color_map.append('red')
-    else:
-        color_map.append('lightgray')
-nx.draw(G, pos, with_labels=True, node_color=color_map, node_size=800, edge_color='gray', ax=ax)
-nx.draw_networkx_labels(G, pos, labels=labels, font_color='white', font_weight='bold', ax=ax)
-plt.title("5x5 Zone Grid as Business Network")
-plt.axis("off")
-st.pyplot(fig)
-
-# ===================== Simulation Logic =========================
+# ===================== Step 2: Simulation Logic =========================
 if run_simulation:
     days = list(range(1, total_days + 1))
     first_market, loyalty_based, opposition = [], [], []
@@ -90,42 +66,49 @@ if run_simulation:
     f, l, o = 100, 0, 0
     zone_snapshots = []
 
+    for node in G.nodes:
+        G.nodes[node]['business'] = ''
+        G.nodes[node]['history'] = []
+
     for day in days:
-        f_loss = f * 0.001
-        f -= f_loss
-        churn_f.append(f_loss)
+        for node in G.nodes:
+            current_type = G.nodes[node].get('business', '')
+            neighbors = list(G.neighbors(node))
 
-        if day > 30:
-            l += 1.5
-            l_loss = 0.05 * l if day > 90 else 0.01 * l
-            l -= l_loss
-            churn_l.append(l_loss)
-        else:
-            churn_l.append(0)
+            if current_type == '':
+                if day <= 30 and random.random() < 0.2:
+                    G.nodes[node]['business'] = 'F'
+                elif 30 < day <= 90 and any(G.nodes[n]['business'] == 'F' for n in neighbors):
+                    if random.random() < 0.3:
+                        G.nodes[node]['business'] = 'L'
+                elif day > 90 and any(G.nodes[n]['business'] in ['F', 'L'] for n in neighbors):
+                    if random.random() < 0.4:
+                        G.nodes[node]['business'] = 'O'
 
-        if day > 90:
-            o_gain = 2
-            o += o_gain
-            f -= 1
-            l -= 1
-            churn_o.append(0.5)
-        else:
-            churn_o.append(0)
+            elif current_type == 'F' and day > 90 and random.random() < 0.05:
+                G.nodes[node]['business'] = 'O'
+            elif current_type == 'L' and day > 90 and random.random() < 0.1:
+                G.nodes[node]['business'] = 'O'
 
-        first_market.append(max(f, 0))
-        loyalty_based.append(max(l, 0))
-        opposition.append(max(o, 0))
+            G.nodes[node]['history'].append(G.nodes[node]['business'])
 
-        grid = np.full((5, 5), "", dtype=object)
+        # Track business totals
+        f = sum(1 for n in G.nodes if G.nodes[n]['business'] == 'F')
+        l = sum(1 for n in G.nodes if G.nodes[n]['business'] == 'L')
+        o = sum(1 for n in G.nodes if G.nodes[n]['business'] == 'O')
+        first_market.append(f)
+        loyalty_based.append(l)
+        opposition.append(o)
+        churn_f.append(random.uniform(0.1, 1.0))
+        churn_l.append(random.uniform(0.1, 1.5))
+        churn_o.append(random.uniform(0.1, 2.0))
+
+        # Snapshot grid for map rendering
+        grid = np.full((5, 5), '', dtype=object)
         for i in range(5):
             for j in range(5):
-                zone_id = i * 5 + j
-                if day <= 30 and zone_id < 10:
-                    grid[i][j] = 'F'
-                elif 30 < day <= 90 and zone_id < 15:
-                    grid[i][j] = 'L'
-                elif day > 90 and zone_id < 25:
-                    grid[i][j] = 'O'
+                node_id = f"Z{i*cols + j}"
+                grid[i][j] = G.nodes[node_id]['business']
         zone_snapshots.append(grid)
 
     state.df_trends = pd.DataFrame({
@@ -141,6 +124,55 @@ if run_simulation:
         "Opposition": churn_o
     })
     state.zone_snapshots = zone_snapshots
-    state.df_trends.to_csv("simulation_output.csv", index=False)
-    state.df_churn.to_csv("churn_output.csv", index=False)
-    st.success("✅ Simulation complete. Data exported.")
+    st.success("✅ Simulation complete. Data generated.")
+
+# ===================== Display Section =========================
+if state.df_trends is not None:
+    col1, col2 = st.columns([1, 2])
+
+    col1.subheader(f"\U0001F4E6 Zone Ownership on Day {selected_day}")
+    zone_df = pd.DataFrame(state.zone_snapshots[selected_day - 1])
+    zone_colors = zone_df.replace({
+        'F': '🟦 F',
+        'L': '🟩 L',
+        'O': '🟥 O',
+        '': '⬜️'
+    })
+    col1.dataframe(zone_colors, use_container_width=True)
+
+    col2.subheader("\U0001F5FA️ Business Distribution Map")
+    grid_base_lat, grid_base_lon = -26.267, 27.858
+    lat_step, lon_step = 0.002, 0.002
+    day_grid = state.zone_snapshots[selected_day - 1]
+    map_dynamic = folium.Map(location=[grid_base_lat, grid_base_lon], zoom_start=14)
+
+    for i in range(5):
+        for j in range(5):
+            b_type = day_grid[i][j]
+            if b_type != "":
+                lat = grid_base_lat + (i * lat_step)
+                lon = grid_base_lon + (j * lon_step)
+                color = 'blue' if b_type == 'F' else 'green' if b_type == 'L' else 'red'
+                folium.Marker(
+                    location=[lat, lon],
+                    popup=f"Zone ({i},{j}) – {b_type}",
+                    icon=folium.Icon(color=color)
+                ).add_to(map_dynamic)
+    st_folium(map_dynamic, width=700, height=500)
+
+    st.subheader(f"\U0001F4CA Market Share and Churn on Day {selected_day}")
+    day_stats = {
+        "First-to-Market": state.df_trends.loc[selected_day - 1, "First-to-Market"],
+        "Loyalty-Based": state.df_trends.loc[selected_day - 1, "Loyalty-Based"],
+        "Opposition": state.df_trends.loc[selected_day - 1, "Opposition"]
+    }
+    churn_stats = {
+        "First-to-Market": state.df_churn.loc[selected_day - 1, "First-to-Market"],
+        "Loyalty-Based": state.df_churn.loc[selected_day - 1, "Loyalty-Based"],
+        "Opposition": state.df_churn.loc[selected_day - 1, "Opposition"]
+    }
+    st.markdown("**\U0001F4E6 Market Share:**")
+    st.bar_chart(pd.DataFrame(day_stats, index=["Customers"]))
+
+    st.markdown("**\U0001F525 Churn:**")
+    st.bar_chart(pd.DataFrame(churn_stats, index=["Churned"]))
